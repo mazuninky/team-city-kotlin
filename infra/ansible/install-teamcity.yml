@@ -1,0 +1,50 @@
+- hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    teamcity_version: 2019.1.1
+
+  tasks:
+    - name: ensure apt cache is up to date
+      apt: update_cache=yes
+
+    - name: ensure packages are installed
+      apt:
+        pkg:
+          - default-jdk
+          - wget
+          - nginx
+
+    - name: create folder for downloading files
+      file:
+        path: /download
+        state: directory
+
+    - name: download TeamCity
+      get_url:
+        url: https://download.jetbrains.com/teamcity/TeamCity-{{teamcity_version}}.tar.gz
+        dest: /download
+
+    - name: unzip TeamCity
+      command: tar -xzf /download/TeamCity-{{teamcity_version}}.tar.gz -C /
+      become: yes
+
+    - name: remove download
+      command: rm -rf /download
+      become: yes
+
+    - name: copy nginx config
+      copy:
+        src: ./teamcity
+        dest: /etc/nginx/sites-available/teamcity
+
+    - name: configure nginx and start TeamCity
+      command:
+        argv:
+          - ln -s /etc/nginx/sites-available/teamcity /etc/nginx/sites-enabled/teamcity
+          - rm -rf /etc/nginx/sites-available/default
+          - rm -rf /etc/nginx/sites-enabled/default
+          - service nginx restart
+          - /TeamCity/bin/runAll.sh start
+      become: yes
